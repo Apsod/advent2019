@@ -1,26 +1,13 @@
 module Day4 (solve) where
 
 import Text.Trifecta
-import Data.Array.Unboxed
-import Data.Array.ST
-import Control.Monad.ST
 import Data.List
 import Data.Int
 
 type Password = [Int8]
 
 normalizePassword :: Password -> Password
-normalizePassword (x:xs) = x : go x xs
-  where
-    go x (h:t) =
-      let x' = max x h
-      in x' : go x' t
-    go _ [] = []
-
-next :: Password -> Password
-next [x] = [x + 1]
-next ps@(x:9:_) = let x' = x+1 in replicate (length ps) x'
-next (x:t) = x : next t
+normalizePassword = scanl1 max
 
 parsePassword :: Parser Password
 parsePassword = count 6 (read . pure <$> digit)
@@ -32,11 +19,12 @@ parseProblem = do
   ub <- parsePassword
   return (normalizePassword lb, ub)
 
-valid1 :: Password -> Bool
-valid1 = any (>=2) . map length . group
+next :: Password -> Password
+next [x] = [x + 1]
+next ps@(x:9:_) = let x' = x+1 in replicate (length ps) x'
+next (x:t) = x : next t
 
-valid2 :: Password -> Bool
-valid2 = any (==2) . map length . group
+runLength = map length . group
 
 countPossible :: (Password -> Bool) -> Password -> Password -> Int
 countPossible valid ub = length . filter valid . takeWhile (<= ub) . iterate next
@@ -44,5 +32,5 @@ countPossible valid ub = length . filter valid . takeWhile (<= ub) . iterate nex
 solve :: String -> IO ()
 solve filepath = do
   Just (lb, ub) <- parseFromFile parseProblem filepath
-  print $ countPossible valid1 ub lb
-  print $ countPossible valid2 ub lb
+  print $ countPossible (any (>=2) . runLength) ub lb
+  print $ countPossible (any (==2) . runLength) ub lb
