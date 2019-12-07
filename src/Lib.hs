@@ -8,8 +8,17 @@ import Day2
 import Day3
 import Day4
 import Day5
+import Day6
 
-solvers = [undefined, Day1.solve, Day2.solve, Day3.solve, Day4.solve, Day5.solve]
+solvers = [
+  undefined,
+  Day1.solve,
+  Day2.solve,
+  Day3.solve,
+  Day4.solve,
+  Day5.solve,
+  Day6.solve
+  ]
 
 someFunc :: IO ()
 someFunc = do 
