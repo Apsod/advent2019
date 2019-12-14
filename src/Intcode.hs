@@ -141,7 +141,7 @@ step state = do
     7 -> writePred state (<) modes
     8 -> writePred state (==) modes
     9 -> moveRelBase state m1
-    99 -> return Finished
+    99 -> moveHead state (-1) >> return Finished
 
 
 thaw :: [Int] -> ST s (ProgramState s)
