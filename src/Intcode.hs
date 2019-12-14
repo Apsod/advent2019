@@ -3,18 +3,18 @@
 module Intcode where
 
 import Text.Trifecta (integer, comma, sepBy, Parser)
-import qualified Data.Vector.Unboxed as V
-import qualified Data.Vector.Unboxed.Mutable as MV
+import qualified Data.HashTable.ST.Basic as H
 import Control.Monad.ST
 import Control.Monad
 import Data.Bool
+import Data.Maybe
 import Debug.Trace
 import Data.List
 import Data.Mutable
 
-type Program = V.Vector Int
+type Program = [Int]
 
-type ProgramState s = MV.STVector s Int
+type ProgramState s = H.HashTable s Int Int
 type HeadState s = URef s Int
 type InputState s = UDeque s Int
 
@@ -30,8 +30,7 @@ int :: Parser Int
 int = fromIntegral <$> integer
 
 parseProgram :: Parser Program
-parseProgram = list2program <$> (int `sepBy` comma)
-  where list2program xs = V.fromList xs
+parseProgram = (int `sepBy` comma)
 
 type Opcode = (Int, Mode, Mode, Mode)
 type Modes = (Mode, Mode, Mode)
@@ -47,10 +46,10 @@ data Result = Step | Waiting | Output Int | Finished
 
 
 readAt :: State s -> Int -> ST s Int
-readAt state ix = MV.read (getProgram state) ix
+readAt state ix = fromMaybe 0 <$> H.lookup (getProgram state) ix
 
 writeAt :: State s -> Int -> Int -> ST s ()
-writeAt state ix val = MV.write (getProgram state) ix val
+writeAt state ix val = H.insert (getProgram state) ix val
 
 putInput :: State s -> Int ->  ST s ()
 putInput state val = pushBack (getInput state) val
@@ -58,12 +57,19 @@ putInput state val = pushBack (getInput state) val
 moveHead :: State s -> Int -> ST s ()
 moveHead state offset = modifyRef (getHead state) (\x-> x + offset)
 
+moveRel :: State s -> Int -> ST s ()
+moveRel state offset = modifyRef (getRel state) (\x-> x + offset)
+
 stepGet :: State s -> Mode -> ST s Int
 stepGet state mode = do
   ix <- readHead state
   val <- case mode of
     0 -> readAt state ix >>= readAt state
     1 -> readAt state ix
+    2 -> do 
+      offset <- readAt state ix
+      relbase <- readRel state
+      readAt state (relbase + offset)
   moveHead state 1
   return val
 
@@ -73,6 +79,10 @@ stepPut state mode val = do
   case mode of
     0 -> readAt state ix >>= \pos -> writeAt state pos val
     1 -> writeAt state ix val
+    2 -> do 
+      offset <- readAt state ix
+      relbase <- readRel state
+      writeAt state (relbase + offset) val
   moveHead state 1
 
 seekHead :: State s -> Int -> ST s ()
@@ -80,6 +90,9 @@ seekHead state ix = writeRef (getHead state) ix
 
 readHead :: State s -> ST s Int
 readHead state = readRef (getHead state)
+
+readRel :: State s -> ST s Int
+readRel state = readRef (getRel state)
 
 apply :: State s -> (Int -> Int -> Int) -> Modes -> ST s Result
 apply state f (m1, m2, m3) = do
@@ -109,9 +122,14 @@ writePred state pred (m1, m2, m3) = do
   flag <- pred <$> stepGet state m1 <*> stepGet state m2
   stepPut state m3 (bool 0 1 flag) >> return Step
 
+moveRelBase :: State s -> Mode -> ST s Result
+moveRelBase state m1 = do
+  stepGet state m1 >>= moveRel state >> return Step
+
 step :: State s -> ST s Result
 step state = do
   (op, m1, m2, m3) <- parseOp <$> stepGet state 1
+  --trace (show (op, m1, m2, m3)) (return ())
   let modes = (m1, m2, m3)
   case op of
     1 -> apply state (+) modes
@@ -122,11 +140,18 @@ step state = do
     6 -> jumpIf state (==0) modes
     7 -> writePred state (<) modes
     8 -> writePred state (==) modes
+    9 -> moveRelBase state m1
     99 -> return Finished
 
 
+thaw :: [Int] -> ST s (ProgramState s)
+thaw xs = do
+  program <- H.newSized $ (length xs) * 2
+  mapM_ (\(i,v) -> H.insert program i v) (zip [0..] xs)
+  return program
+
 initialize :: Program -> ST s (State s)
-initialize program = State <$> newRef 0 <*> newRef 0 <*> V.thaw program <*> newColl
+initialize program = State <$> newRef 0 <*> newRef 0 <*> thaw program <*> newColl
 
 run :: State s -> ST s (Bool, [Int])
 run state = go []

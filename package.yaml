@@ -24,6 +24,7 @@ dependencies:
 - trifecta
 - vector
 - containers
+- hashtables
 - mutable-containers
 
 library:
@@ -41,6 +42,7 @@ executables:
     - advent2019
     - trifecta
     - vector
+    - hashtables
     - containers
     - mutable-containers
 
