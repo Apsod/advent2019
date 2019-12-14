@@ -22,8 +22,9 @@ description:         Please see the README on GitHub at <https://github.com/gith
 dependencies:
 - base >= 4.7 && < 5
 - trifecta
-- array
+- vector
 - containers
+- mutable-containers
 
 library:
   source-dirs: src
@@ -39,8 +40,9 @@ executables:
     dependencies:
     - advent2019
     - trifecta
-    - array
+    - vector
     - containers
+    - mutable-containers
 
 tests:
   advent2019-test:
